@@ -13,7 +13,7 @@ const test = base.extend<{ browserErrors: string[] }>({
   }, { auto: true }],
 });
 
-async function stat(page: Page, name: 'stretch' | 'rotation' | 'tilt' | 'height' | 'tosses' | 'landings' | 'bend' | 'faceUpness' | 'clearance' | 'x') {
+async function stat(page: Page, name: 'stretch' | 'rotation' | 'tilt' | 'height' | 'tosses' | 'landings' | 'bend' | 'faceUpness' | 'clearance' | 'x' | 'grip' | 'pickup') {
   return Number(await page.locator('#scene').getAttribute(`data-${name.replace(/[A-Z]/g, letter => "-" + letter.toLowerCase())}`));
 }
 
@@ -187,8 +187,9 @@ test('a little hop pauses in midair, lands and upright preserves the chosen sett
   await page.locator('#pause').click();
   await expect(page.locator('#scene')).toHaveAttribute('data-paused', 'true');
   await expect(page.locator('#scene')).toHaveAttribute('data-airborne', 'true');
-  // A repeated toss during a paused hop must not silently resume the simulation.
-  await page.locator('#toss').click();
+  // The UI explains readiness; a repeated shortcut must not resume a paused hop.
+  await expect(page.locator('#toss')).toBeDisabled();
+  await page.keyboard.press('t');
   await expect(page.locator('#scene')).toHaveAttribute('data-paused', 'true');
   await expect.poll(() => stat(page, 'tosses')).toBe(1);
   await page.waitForTimeout(150);
@@ -200,6 +201,7 @@ test('a little hop pauses in midair, lands and upright preserves the chosen sett
   await page.locator('#pause').click();
   await expect.poll(() => stat(page, 'landings'), { timeout: 25_000 }).toBeGreaterThanOrEqual(1);
   await expect(page.locator('#scene')).toHaveAttribute('data-airborne', 'false');
+  await expect(page.locator('#toss')).toBeEnabled();
   await page.locator('#toss').click();
   await expect.poll(() => stat(page, 'tosses')).toBe(2);
   await page.locator('#upright').click();
@@ -259,4 +261,37 @@ test('mouse and touch can lift, hold and drop the fruit without triggering a scr
   await expect.poll(() => stat(page, 'height')).toBeLessThan(0.02);
   await expect(page.locator('#scene')).toHaveAttribute('data-tosses', '0');
   expect(await stat(page, 'clearance')).toBeGreaterThanOrEqual(0);
+});
+
+test('small mouse and touch tugs jiggle the flesh while the slice stays on the table', async ({ page }, testInfo) => {
+  const canvas = (await page.locator('#scene canvas').boundingBox())!;
+  const x = canvas.x + canvas.width * 0.5;
+  const y = canvas.y + canvas.height * 0.5;
+  const touch = testInfo.project.name === 'mobile';
+  const client = await page.context().newCDPSession(page);
+  if (touch) {
+    await client.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] });
+    await client.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: x + 22, y }] });
+  } else {
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await page.mouse.move(x + 22, y, { steps: 5 });
+  }
+  await expect(page.locator('#scene')).toHaveAttribute('data-held', 'true');
+  await expect.poll(() => stat(page, 'grip')).toBeGreaterThan(0.1);
+  await expect(page.locator('#interaction-label')).toHaveText(/jiggle/);
+  await expect(page.locator('.grip-marker')).toHaveClass(/active/);
+  expect(await stat(page, 'height')).toBeLessThan(0.02);
+  expect(Math.abs(await stat(page, 'x'))).toBeLessThan(0.02);
+  expect(await stat(page, 'pickup')).toBeLessThan(0.01);
+  if (touch) {
+    await client.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  } else {
+    await page.mouse.up();
+  }
+  await expect(page.locator('#scene')).toHaveAttribute('data-held', 'false');
+  await expect(page.locator('.grip-marker')).not.toHaveClass(/active/);
+  await expect.poll(() => energy(page)).toBeGreaterThan(0.001);
+  await expect.poll(() => stat(page, 'stretch'), { timeout: 25_000 }).toBeLessThan(0.01);
+  await expect(page.locator('#scene')).toHaveAttribute('data-tosses', '0');
 });

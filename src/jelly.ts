@@ -115,10 +115,10 @@ export class Jelly {
   private floorClearance = 0;
   private activePointer: number | null = null;
   private previousTime = 0;
-  private time = 0;
   private frame = 0;
   private resizeObserver: ResizeObserver;
   private shadow: THREE.Mesh;
+  private gripMarker = document.createElement('div');
   public paused = false;
   public slow = false;
   public onGrab: ((grabbing: boolean) => void) | null = null;
@@ -133,9 +133,12 @@ export class Jelly {
     this.renderer.toneMappingExposure = 0.94;
     // Transmission needs a real scene background to refract, not an empty alpha buffer.
     this.scene.background = new THREE.Color('#f5f3ef');
-    this.renderer.domElement.setAttribute('aria-label', 'Interactive jelly watermelon. Grab and lift the slice, then let go to drop it onto the table. Drag empty space to tilt it flat. Stand upright restores its pose.');
+    this.renderer.domElement.setAttribute('aria-label', 'Interactive jelly watermelon. Give the flesh a small drag to jiggle it, pull farther to lift, then release to drop. Drag empty space to tilt it flat. Stand upright restores its pose.');
     this.renderer.domElement.setAttribute('role', 'img');
     this.container.appendChild(this.renderer.domElement);
+    this.gripMarker.className = 'grip-marker';
+    this.gripMarker.setAttribute('aria-hidden', 'true');
+    this.container.appendChild(this.gripMarker);
     const environment = new RoomEnvironment();
     const pmrem = new THREE.PMREMGenerator(this.renderer);
     this.scene.environment = pmrem.fromScene(environment, 0.04).texture;
@@ -271,11 +274,20 @@ export class Jelly {
         this.grabPlane.setFromNormalAndCoplanarPoint(normal, hit.point);
         this.grabWorld.copy(hit.point);
         this.grabDepth = hit.point.z;
-        this.motion.beginGrab(this.group.worldToLocal(hit.point.clone()), hit.point);
+        const local = this.group.worldToLocal(hit.point.clone());
+        // Recover the rest point so grabbing an already wobbling surface does not jump.
+        const rest = local.clone();
+        const deformed = new THREE.Vector3();
+        for (let i = 0; i < 5; i++) {
+          this.deform(rest.x, rest.y, rest.z, deformed);
+          rest.addScaledVector(deformed.sub(local), -0.7);
+        }
+        this.motion.beginGrab(rest, hit.point);
       } else this.motion.beginTurn();
       canvas.setPointerCapture(event.pointerId);
       canvas.style.cursor = 'grabbing';
       this.onGrab?.(Boolean(hit));
+      this.gripMarker.classList.toggle('active', Boolean(hit));
     });
     canvas.addEventListener('pointermove', event => {
       this.updatePointer(event);
@@ -308,10 +320,12 @@ export class Jelly {
       this.activePointer = null;
       canvas.style.cursor = 'grab';
       this.onGrab?.(false);
+      this.gripMarker.classList.remove('active');
     };
     canvas.addEventListener('pointerup', release);
     canvas.addEventListener('pointercancel', release);
     canvas.addEventListener('lostpointercapture', release);
+    window.addEventListener('blur', () => this.cancelManipulation());
     canvas.addEventListener('dblclick', () => this.toss());
   }
 
@@ -322,13 +336,20 @@ export class Jelly {
     const squeeze = THREE.MathUtils.clamp(offset.y * 0.14, -0.22, 0.22);
     const bendX = this.motion.bend.x * height;
     const bendZ = this.motion.bend.y * height;
+    const grip = this.motion.gripOffset;
+    const origin = this.motion.gripPoint;
+    const distance = (x - origin.x) ** 2 + (y - origin.y) ** 2 + (z - origin.z) ** 2 * 0.45;
+    const radius = Math.hypot(x, TOP - y);
+    const rind = 1 - THREE.MathUtils.smoothstep(radius, 2.48, 3.1);
+    const influence = Math.exp(-distance / 2.2) * (0.18 + rind * 0.82);
+    const localSqueeze = THREE.MathUtils.clamp(grip.y * influence * 0.065, -0.06, 0.06);
     // Rotate successive cross-sections so the slice curls rather than just shearing.
     const sideways = x * Math.cos(bendZ) - (y + 1.5) * Math.sin(bendZ);
     const spine = x * Math.sin(bendZ) + (y + 1.5) * Math.cos(bendZ);
     return output.set(
-      sideways * (1 - squeeze) + offset.x * weight,
-      spine * Math.cos(bendX) - z * Math.sin(bendX) - 1.5 + offset.y * weight,
-      spine * Math.sin(bendX) + z * Math.cos(bendX) * (1 - squeeze) + offset.z * weight,
+      sideways * (1 - squeeze - localSqueeze) + offset.x * weight + grip.x * influence,
+      spine * Math.cos(bendX) - z * Math.sin(bendX) - 1.5 + offset.y * weight + grip.y * influence,
+      spine * Math.sin(bendX) + z * Math.cos(bendX) * (1 - squeeze - localSqueeze) + offset.z * weight + grip.z * influence,
     );
   }
 
@@ -337,7 +358,6 @@ export class Jelly {
     this.previousTime = timestamp;
     if (this.slow) dt *= 0.5;
     if (this.paused) dt = 0;
-    this.time += dt;
     this.motion.step(dt);
     const point = new THREE.Vector3();
     if (dt > 0) {
@@ -367,6 +387,14 @@ export class Jelly {
       this.shadow.position.set(this.motion.body.x, FLOOR_Y, this.motion.body.z);
       this.shadow.scale.set(1 + this.motion.height * 0.25, 1 + this.motion.faceUpness * 0.4 + this.motion.height * 0.25, 1);
       (this.shadow.material as THREE.MeshBasicMaterial).opacity = Math.max(0.2, 1 - this.motion.height * 0.5);
+      if (this.motion.grabbed) {
+        const grip = this.motion.grabPoint;
+        this.deform(grip.x, grip.y, grip.z, point);
+        point.applyQuaternion(this.group.quaternion).add(this.group.position).project(this.camera);
+        const x = (point.x + 1) * this.container.clientWidth / 2;
+        const y = (1 - point.y) * this.container.clientHeight / 2;
+        this.gripMarker.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%) scale(${1 + this.motion.gripOffset.length() * 0.35})`;
+      }
     }
     this.renderer.render(this.scene, this.camera);
     this.frame++;
@@ -407,18 +435,21 @@ export class Jelly {
     this.motion.endTurn();
     if (id !== null && this.renderer.domElement.hasPointerCapture(id)) this.renderer.domElement.releasePointerCapture(id);
     this.renderer.domElement.style.cursor = 'grab';
+    this.gripMarker.classList.remove('active');
     this.onGrab?.(false);
   }
   reset() {
     this.cancelManipulation();
     this.motion.reset();
-    this.time = 0;
   }
   getStats() {
     return {
       energy: this.motion.energy,
-      volume: 100 - Math.min(3.8, this.motion.offset.length() * 1.8),
-      stretch: this.motion.offset.length(),
+      volume: 100 - Math.min(3.8, this.motion.stretch * 1.8),
+      stretch: this.motion.stretch,
+      grip: this.motion.gripOffset.length(),
+      pickup: this.motion.gripBlend,
+      canHop: this.motion.canHop,
       rotation: this.motion.pose.y,
       tilt: this.motion.pose.x,
       bend: this.motion.bend.length(),

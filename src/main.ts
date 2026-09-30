@@ -75,7 +75,7 @@ try {
     scene.classList.toggle('is-grabbing', grabbing);
     const label = element('interaction-label');
     if (label) {
-      label.textContent = grabbing ? 'Pick it up. Let it plop.' : 'Made to be played with.';
+      label.textContent = grabbing ? 'A little tug. A lovely jiggle.' : 'Made to be played with.';
       label.classList.toggle('active', grabbing);
     }
   };
@@ -188,6 +188,14 @@ try {
     scene.dataset.faceUpness = stats.faceUpness.toFixed(3);
     scene.dataset.clearance = stats.clearance.toFixed(3);
     scene.dataset.held = String(stats.held);
+    scene.dataset.grip = stats.grip.toFixed(3);
+    scene.dataset.pickup = stats.pickup.toFixed(3);
+    element<HTMLButtonElement>('toss').disabled = !stats.canHop;
+    if (stats.held) {
+      element('interaction-label').textContent = stats.height > 0.08
+        ? 'Up you go. Let go to drop.'
+        : stats.pickup > 0.2 ? 'Pull a little farther to lift.' : 'A little tug. A lovely jiggle.';
+    }
   }, 100);
   updatePause();
 } catch (error) {

@@ -15,17 +15,17 @@ The development server binds to all interfaces. The cloud environment provides t
 
 ## Play
 
-- Grab the fruit to move and lift it. Release it to drop onto the table; fast drags carry momentum into the drop.
+- Give the flesh a small drag to stretch and jiggle it while the rind stays on the table. Pull farther to lift the slice, then release to drop it; fast drags carry momentum into the drop.
 - Drag empty space vertically to tip it onto either face, or horizontally to turn it. The slice stays lying down after it settles.
 - Use **Stand upright** or U to stand it up and bring it back to the center without changing your color or softness settings.
 - **Little hop**, double click, Space, or T gives it a gentle hop with a little tumble. It does not force a full flip or reset its landing pose.
 - Hold Shift while dragging the fruit to move it in depth.
-- Change palette, translucency, firmness, or damping. Colors stay saturated at both ends of the translucency slider.
+- Change palette, translucency, firmness, or damping. Firmness also controls how stretchy the grab feels and how soon a tug picks up the slice. Colors stay saturated at both ends of the translucency slider.
 - Give it a smaller wobble with **Give it a nudge**.
 - Try half speed, the wireframe view, or optional sound.
 - Reset with the arrow button or R. Pause freezes the simulation.
 
-The slice uses gravity, a point grab, contact impulses, and friction against a horizontal table, with a spring-based gel layer. The live measurements are an artistic approximation, not a scientific soft-body solver. The slice rests still until you interact with it. A WebGL-capable browser is required.
+The slice uses gravity, a point grab, contact impulses, and friction against a horizontal table, with coupled fingertip and gel springs. A small grounded grab stretches a local patch of flesh; a smooth threshold blends larger pulls into body movement, and releasing the handle leaves the gel free to oscillate. The live measurements are an artistic approximation, not a scientific soft-body solver. The slice rests still until you interact with it. A WebGL-capable browser is required.
 
 ## Verify
 

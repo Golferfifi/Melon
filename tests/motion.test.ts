@@ -12,6 +12,60 @@ function grabFront(motion: SliceMotion) {
   motion.beginGrab(local, world);
 }
 
+test('small pulls visibly stretch the gel while keeping the rind planted', () => {
+  const motion = new SliceMotion();
+  const body = motion.body.clone();
+  const orientation = motion.orientation.clone();
+  grabFront(motion);
+  motion.grabTarget.x += 0.3;
+  advance(motion, 0.6);
+  assert.ok(motion.gripOffset.length() > 0.2);
+  assert.ok(motion.stretch > 0.3);
+  assert.ok(motion.body.distanceTo(body) < 0.005);
+  assert.ok(motion.orientation.angleTo(orientation) < 0.005);
+  assert.ok(motion.height < 0.01);
+  motion.releaseGrab();
+  advance(motion, 0.25);
+  assert.ok(motion.energy > 0.001, 'The released gel should keep wobbling');
+  advance(motion, 10);
+  assert.ok(motion.energy < 0.001);
+  assert.ok(motion.stretch < 0.01);
+});
+
+test('quick alternating pulls jiggle on the table without accidentally lifting or flipping', () => {
+  const motion = new SliceMotion();
+  grabFront(motion);
+  const origin = motion.grabTarget.clone();
+  let maximumStretch = 0;
+  let maximumBend = 0;
+  for (let shake = 0; shake < 8; shake++) {
+    motion.grabTarget.copy(origin).add(new Vector3(shake % 2 ? -0.28 : 0.28, 0, 0));
+    advance(motion, 0.12);
+    maximumStretch = Math.max(maximumStretch, motion.stretch);
+    maximumBend = Math.max(maximumBend, motion.bend.length());
+    assert.ok(motion.height < 0.01);
+  }
+  assert.ok(maximumStretch > 0.15);
+  assert.ok(maximumBend > 0.02);
+  assert.equal(motion.tossCount, 0);
+  motion.releaseGrab();
+  advance(motion, 0.2);
+  assert.ok(motion.stretch > 0.01);
+});
+
+test('firmness controls how much of a pull stretches the flesh before moving the body', () => {
+  const motions = [0, 100].map(firmness => {
+    const motion = new SliceMotion();
+    motion.firmness = firmness;
+    grabFront(motion);
+    motion.grabTarget.x += 0.5;
+    advance(motion, 1);
+    return motion;
+  });
+  assert.ok(motions[0].gripOffset.length() > motions[1].gripOffset.length() + 0.1);
+  assert.ok(motions[1].body.x > motions[0].body.x + 0.1);
+});
+
 test('grabbing lifts the actual body, releasing drops it onto the surface', () => {
   const motion = new SliceMotion();
   const startY = motion.body.y;
