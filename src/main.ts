@@ -1,5 +1,6 @@
 import './style.css';
 import { Jelly, type Palette } from './jelly';
+import { DEFAULT_FIRMNESS, DEFAULT_DAMPING } from './motion';
 
 const element = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const scene = element('scene');
@@ -70,14 +71,19 @@ try {
   scene.dataset.palette = 'ruby';
   scene.dataset.paused = 'false';
   jelly.onGrab = grabbing => {
+    updatePause();
     scene.classList.toggle('is-grabbing', grabbing);
     const label = element('interaction-label');
     if (label) {
-      label.textContent = grabbing ? 'Aaand… let go.' : 'Made to be played with.';
+      label.textContent = grabbing ? 'Pull slowly. Flick up to flip.' : 'Made to be played with.';
       label.classList.toggle('active', grabbing);
     }
   };
   jelly.onRelease = playNote;
+  jelly.onToss = () => {
+    updatePause();
+    playNote();
+  };
 
   document.querySelectorAll<HTMLButtonElement>('button[data-palette]').forEach(button => {
     button.addEventListener('click', () => {
@@ -93,26 +99,34 @@ try {
     });
   });
 
-  for (const id of ['firmness', 'damping']) {
+  for (const id of ['firmness', 'damping', 'translucency']) {
     const input = element<HTMLInputElement>(id);
     syncRange(input);
     input.addEventListener('input', () => {
       syncRange(input);
-      if (id === 'firmness') jelly.setFirmness(Number(input.value));
+      if (id === 'translucency') jelly.setTranslucency(Number(input.value));
+      else if (id === 'firmness') jelly.setFirmness(Number(input.value));
       else jelly.setDamping(Number(input.value));
     });
-    input.addEventListener('change', () => { if (!jelly.paused) jelly.nudge(0.3); });
+    input.addEventListener('change', () => { if (!jelly.paused && id !== 'translucency') jelly.nudge(0.3); });
   }
 
   element('nudge').addEventListener('click', nudge);
+  element('toss').addEventListener('click', () => jelly.toss());
+  element('upright').addEventListener('click', () => {
+    jelly.standUpright();
+    updatePause();
+    toast('Back on your rind.');
+  });
   element('reset').addEventListener('click', () => {
     jelly.reset();
     jelly.paused = false;
     jelly.slow = false;
     jelly.setWireframe(false);
-    jelly.setFirmness(58);
-    jelly.setDamping(34);
-    for (const [id, value] of [['firmness', '58'], ['damping', '34']]) {
+    jelly.setFirmness(DEFAULT_FIRMNESS);
+    jelly.setDamping(DEFAULT_DAMPING);
+    jelly.setTranslucency(92);
+    for (const [id, value] of [['firmness', String(DEFAULT_FIRMNESS)], ['damping', String(DEFAULT_DAMPING)], ['translucency', '92']]) {
       const input = element<HTMLInputElement>(id);
       input.value = value;
       syncRange(input);
@@ -145,11 +159,15 @@ try {
     playNote();
   });
   document.addEventListener('keydown', event => {
-    if ((event.target as HTMLElement).matches('input, button, a, textarea, select, summary') || event.metaKey || event.ctrlKey || event.altKey) return;
-    if (event.code === 'Space') {
+    const target = event.target as HTMLElement;
+    if (target.matches('input, textarea, select, [contenteditable="true"]') || event.metaKey || event.ctrlKey || event.altKey) return;
+    if (event.code === 'Space' && target.closest('button, a, summary')) return;
+    if (event.repeat) return;
+    if (event.code === 'Space' || event.code === 'KeyT') {
       event.preventDefault();
-      nudge();
+      jelly.toss();
     }
+    if (event.code === 'KeyU') element('upright').click();
     if (event.code === 'KeyR') element('reset').click();
   });
   setInterval(() => {
@@ -158,6 +176,13 @@ try {
     element('volume-value').textContent = stats.volume.toFixed(1);
     scene.dataset.stretch = stats.stretch.toFixed(3);
     scene.dataset.rotation = stats.rotation.toFixed(3);
+    scene.dataset.tilt = stats.tilt.toFixed(3);
+    scene.dataset.bend = stats.bend.toFixed(3);
+    scene.dataset.height = stats.height.toFixed(3);
+    scene.dataset.airborne = String(stats.airborne);
+    scene.dataset.tosses = String(stats.tosses);
+    scene.dataset.landings = String(stats.landings);
+    scene.dataset.transmission = stats.transmission.toFixed(2);
   }, 100);
   updatePause();
 } catch (error) {

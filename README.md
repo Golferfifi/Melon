@@ -15,10 +15,12 @@ The development server binds to all interfaces. The cloud environment provides t
 
 ## Play
 
-- Drag the fruit to stretch it, then release to watch it bounce.
-- Drag the background to rotate. Hold Shift while pulling for depth.
-- Change the palette, firmness, or internal damping.
-- Give it a nudge with the button, a double click, or Space.
+- Pull the fruit gently to stretch it, then release to watch it wobble.
+- Flick the fruit upward to toss it through a floppy flip. The **Toss it** button, double click, Space, and T do the same.
+- Drag the background horizontally or vertically to turn the slice all the way around. Hold Shift while pulling for depth.
+- Use **Stand upright** or U to restore its pose without changing your color or softness settings.
+- Change the palette, translucency, firmness, or internal damping. Seeds sit inside the gel and show through its surface.
+- Give it a smaller wobble with **Give it a nudge**.
 - Try half speed, the wireframe view, or optional sound.
 - Reset with the arrow button or R. Pause freezes the simulation.
 
@@ -28,6 +30,7 @@ The spring-based deformation and live measurements are an artistic approximation
 
 ```sh
 npm run build
+npm run test:motion
 npm test
 ```
 

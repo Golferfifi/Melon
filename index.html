@@ -43,20 +43,31 @@
           </fieldset>
 
           <div class="range-control">
-            <label for="firmness">Firmness <output id="firmness-value" for="firmness">58</output></label>
-            <input id="firmness" type="range" min="0" max="100" value="58" />
+            <label for="translucency">Translucency <output id="translucency-value" for="translucency">92</output></label>
+            <input id="translucency" type="range" min="0" max="100" value="92" />
+            <div class="range-extents"><span>Candy</span><span>Clear jelly</span></div>
+          </div>
+
+          <div class="range-control">
+            <label for="firmness">Firmness <output id="firmness-value" for="firmness">35</output></label>
+            <input id="firmness" type="range" min="0" max="100" value="35" />
             <div class="range-extents"><span>Pillowy</span><span>Springy</span></div>
           </div>
 
           <div class="range-control damping-control">
-            <label for="damping">Internal damping <output id="damping-value" for="damping">34</output></label>
-            <input id="damping" type="range" min="0" max="100" value="34" />
+            <label for="damping">Internal damping <output id="damping-value" for="damping">22</output></label>
+            <input id="damping" type="range" min="0" max="100" value="22" />
             <div class="range-extents"><span>Wobbly</span><span>Still</span></div>
           </div>
 
           <div class="action-buttons">
             <button id="nudge" class="nudge-button" type="button"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="m3 8 10 0m-4-4 4 4-4 4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>Give it a nudge</button>
             <button id="reset" class="reset-button" type="button" aria-label="Reset the watermelon" title="Reset the watermelon"><svg viewBox="0 0 18 18" fill="none" aria-hidden="true"><path d="M4.1 5.5A5.6 5.6 0 1 1 3.4 11M4.1 2.2v3.7h3.7" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          </div>
+
+          <div class="motion-buttons">
+            <button id="toss" type="button" title="Toss and flip (Space or T)"><span aria-hidden="true">↻</span> Toss it</button>
+            <button id="upright" type="button" title="Stand upright without changing your settings (U)"><span aria-hidden="true">↑</span> Stand upright</button>
           </div>
 
           <div class="checkbox-controls">
@@ -68,7 +79,7 @@
             <button id="pause" class="pause-button" type="button" aria-pressed="false"><span class="pause-symbol" aria-hidden="true">Ⅱ</span><span class="pause-text">Pause</span></button>
             <span class="playback-status">Let it wobble</span>
           </div>
-          <p class="control-hint">Drag empty space to turn.<br /> <kbd>Shift</kbd> + drag for depth.</p>
+          <p class="control-hint">Pull gently. Flick up to flip.<br /> Drag empty space to turn.<br /> <kbd>Shift</kbd> + pull for depth. <kbd>U</kbd> to stand.</p>
         </aside>
 
         <div class="scene-caption" aria-hidden="true"><span class="caption-mark">↗</span> Curiously satisfying.</div>
@@ -78,7 +89,7 @@
 
       <footer class="experiment-footer">
         <div class="footer-topline">
-          <p class="invitation"><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M7 10V5a1.3 1.3 0 0 1 2.6 0v4m0-1.5a1.3 1.3 0 0 1 2.6 0V10m0-1a1.3 1.3 0 0 1 2.6 0v2m0-1a1.3 1.3 0 0 1 2.6 0v3c0 3-1.8 5-4.7 5H11c-1.6 0-2.6-.8-3.5-2.2L4 10.5a1.2 1.2 0 0 1 1.9-1.4L7 10Z" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></svg><em>Go on, give it a pull.</em> <span>Grab the flesh or rind. Stretch, then let go.</span></p>
+          <p class="invitation"><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M7 10V5a1.3 1.3 0 0 1 2.6 0v4m0-1.5a1.3 1.3 0 0 1 2.6 0V10m0-1a1.3 1.3 0 0 1 2.6 0v2m0-1a1.3 1.3 0 0 1 2.6 0v3c0 3-1.8 5-4.7 5H11c-1.6 0-2.6-.8-3.5-2.2L4 10.5a1.2 1.2 0 0 1 1.9-1.4L7 10Z" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></svg><em>Go on, give it a flip.</em> <span>Pull to stretch. Flick to toss. Space for a little airtime.</span></p>
           <p class="made-of-light">Made of light. Moved by you.</p>
         </div>
         <div class="footer-bottomline">
