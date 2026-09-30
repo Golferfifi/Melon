@@ -35,4 +35,14 @@ The build includes TypeScript checking. Playwright tests cover the live WebGL sc
 
 For a production check, run `npm run preview -- --port 4173` after building. The generated `dist/` directory can be hosted by any static web server.
 
+## Publish automatically with GitHub Pages
+
+In the GitHub repository, open **Settings → Pages** and set the **Build and deployment → Source** to **GitHub Actions**. This is a one-time setting. If GitHub requires a plan change for Pages on a private repository, review that requirement before proceeding; the workflow does not change repository visibility.
+
+The **Deploy Melon Jelly to GitHub Pages** workflow builds and publishes every push to `main`. You can also open **Actions → Deploy Melon Jelly to GitHub Pages → Run workflow** to publish manually, including after enabling Pages for the first time.
+
+Once deployment succeeds, the website is available at **https://golferfifi.github.io/Melon/**. Saving files on your PC does not update the live site until you commit and push those changes to `main`. No running PC or development server is needed for the published site.
+
+Vite uses relative asset URLs so the same production build works under the `/Melon/` project path. The workflow publishes only the generated `dist/` directory.
+
 Dependency and build files remain on disk in an environment snapshot. Running server processes do not survive a new cloud task; start the development server again as needed.
