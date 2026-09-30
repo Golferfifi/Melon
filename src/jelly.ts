@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { TessellateModifier } from 'three/addons/modifiers/TessellateModifier.js';
 import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
-import { SliceMotion } from './motion';
+import { SliceMotion, CENTER_OF_MASS, FLOOR_Y, DEFAULT_TRANSLUCENCY } from './motion';
 
 export type Palette = 'ruby' | 'peach' | 'golden';
 type SoftMesh = { mesh: THREE.Mesh; rest: Float32Array };
@@ -14,10 +14,10 @@ const DEPTH = 1.04;
 const FLESH_RADIUS = 2.65;
 const PITH_RADIUS = 2.8;
 const fleshColors: Record<Palette, string> = {
-  ruby: '#f36783', peach: '#f9a268', golden: '#f7c343',
+  ruby: '#f52e50', peach: '#ff803a', golden: '#f6ba13',
 };
 const gelColors: Record<Palette, string> = {
-  ruby: '#ffe0e8', peach: '#ffe1bf', golden: '#fff0b3',
+  ruby: '#ff5d78', peach: '#ff9b54', golden: '#ffd444',
 };
 
 function faceDepth(radius: number, angle: number) {
@@ -103,19 +103,22 @@ export class Jelly {
   private seeds: { mesh: THREE.Mesh; rest: THREE.Vector3; angle: number }[] = [];
   private flesh: THREE.MeshPhysicalMaterial;
   private materials: THREE.MeshPhysicalMaterial[] = [];
+  private palette: Palette = 'ruby';
   private motion = new SliceMotion();
   private raycaster = new THREE.Raycaster();
   private pointer = new THREE.Vector2();
   private drag: 'pull' | 'spin' | null = null;
   private start = { x: 0, y: 0, rotation: 0, tilt: 0 };
-  private samples: { x: number; y: number; time: number }[] = [];
+  private grabPlane = new THREE.Plane();
+  private grabWorld = new THREE.Vector3();
+  private grabDepth = 0;
+  private floorClearance = 0;
   private activePointer: number | null = null;
   private previousTime = 0;
   private time = 0;
   private frame = 0;
   private resizeObserver: ResizeObserver;
   private shadow: THREE.Mesh;
-  private reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
   public paused = false;
   public slow = false;
   public onGrab: ((grabbing: boolean) => void) | null = null;
@@ -130,7 +133,7 @@ export class Jelly {
     this.renderer.toneMappingExposure = 0.94;
     // Transmission needs a real scene background to refract, not an empty alpha buffer.
     this.scene.background = new THREE.Color('#f5f3ef');
-    this.renderer.domElement.setAttribute('aria-label', 'Interactive translucent jelly watermelon. Pull gently to stretch, flick upward to toss, or drag the background to turn in any direction. Stand upright restores its pose.');
+    this.renderer.domElement.setAttribute('aria-label', 'Interactive jelly watermelon. Grab and lift the slice, then let go to drop it onto the table. Drag empty space to tilt it flat. Stand upright restores its pose.');
     this.renderer.domElement.setAttribute('role', 'img');
     this.container.appendChild(this.renderer.domElement);
     const environment = new RoomEnvironment();
@@ -147,10 +150,10 @@ export class Jelly {
     this.scene.add(rimLight);
 
     this.flesh = new THREE.MeshPhysicalMaterial({
-      color: gelColors.ruby, roughness: 0.055, metalness: 0,
-      transmission: 0.92, thickness: 0.95, ior: 1.36,
-      clearcoat: 1, clearcoatRoughness: 0.055, envMapIntensity: 0.85,
-      side: THREE.FrontSide, attenuationColor: new THREE.Color(fleshColors.ruby), attenuationDistance: 1.1,
+      color: fleshColors.ruby, roughness: 0.1, metalness: 0,
+      transmission: DEFAULT_TRANSLUCENCY / 100, thickness: 0.8, ior: 1.36,
+      clearcoat: 0.8, clearcoatRoughness: 0.08, envMapIntensity: 0.65,
+      side: THREE.FrontSide, attenuationColor: new THREE.Color(gelColors.ruby), attenuationDistance: 2.8,
     });
     const pith = new THREE.MeshPhysicalMaterial({ color: '#e5efb5', roughness: 0.18, transmission: 0.55, thickness: 0.65, ior: 1.36, clearcoat: 0.8 });
     const texture = rindTexture();
@@ -158,6 +161,7 @@ export class Jelly {
     texture.repeat.set(0.5, 0.8);
     const skin = new THREE.MeshPhysicalMaterial({ map: texture, roughness: 0.2, transmission: 0.32, thickness: 0.5, ior: 1.36, clearcoat: 0.9 });
     this.materials = [this.flesh, pith, skin];
+    this.setTranslucency(DEFAULT_TRANSLUCENCY);
     this.addSoft(roundedVolume(0, FLESH_RADIUS, 0.095), this.flesh);
     this.addSoft(roundedVolume(FLESH_RADIUS, PITH_RADIUS, 0.025), pith);
     this.addSoft(roundedVolume(PITH_RADIUS, RADIUS, 0.065), skin);
@@ -176,9 +180,9 @@ export class Jelly {
     ctx.fillRect(0, 0, 128, 128);
     this.shadow = new THREE.Mesh(new THREE.PlaneGeometry(4.4, 2.5), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(shadowCanvas), transparent: true, depthWrite: false }));
     this.shadow.rotation.x = -Math.PI / 2;
-    this.shadow.position.set(0.18, -1.69, 0);
+    this.shadow.position.set(0, FLOOR_Y, 0);
     this.scene.add(this.shadow);
-    this.camera.position.set(0, 0.3, 9.6);
+    this.camera.position.set(0, 2.4, 9.6);
     this.camera.lookAt(0, -0.05, 0);
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(container);
@@ -212,7 +216,8 @@ export class Jelly {
       rows.forEach((row, ri) => row.angles.forEach((angle, i) => {
         const seed = new THREE.Mesh(geometry, material);
         const seedAngle = angle + (z < 0 ? 0.035 : 0);
-        seed.position.set(Math.sin(seedAngle) * row.radius, TOP - Math.cos(seedAngle) * row.radius, z * (faceDepth(row.radius, seedAngle) - 0.13 - (i % 3) * 0.045));
+        const inset = z > 0 ? 0.018 + (i % 3) * 0.004 : 0.13 + (i % 3) * 0.045;
+        seed.position.set(Math.sin(seedAngle) * row.radius, TOP - Math.cos(seedAngle) * row.radius, z * (faceDepth(row.radius, seedAngle) - inset));
         seed.scale.set(0.038 + (i % 2) * 0.004, 0.094 + (ri % 2) * 0.008, 0.027);
         seed.rotation.z = -angle + Math.sin(i * 4 + ri) * 0.18;
         this.seeds.push({ mesh: seed, rest: seed.position.clone(), angle: seed.rotation.z });
@@ -239,6 +244,8 @@ export class Jelly {
     this.renderer.setSize(width, height);
     this.camera.aspect = width / height;
     this.camera.position.z = width < 640 ? 10.2 : 9.6;
+    this.motion.horizontalLimit = width < 640 ? 0.4 : 1.6;
+    this.motion.body.x = THREE.MathUtils.clamp(this.motion.body.x, -this.motion.horizontalLimit, this.motion.horizontalLimit);
     this.camera.lookAt(0, width < 640 ? -0.05 : -0.48, 0);
     this.camera.updateProjectionMatrix();
   }
@@ -252,59 +259,53 @@ export class Jelly {
   private bindPointer() {
     const canvas = this.renderer.domElement;
     canvas.addEventListener('pointerdown', event => {
-      if (event.button !== 0 || this.activePointer !== null || this.motion.airborne) return;
+      if (event.button !== 0 || this.activePointer !== null) return;
       this.paused = false;
       this.updatePointer(event);
-      this.drag = this.raycaster.intersectObjects(this.group.children).length ? 'pull' : 'spin';
+      const hit = this.raycaster.intersectObjects(this.group.children)[0];
+      this.drag = hit ? 'pull' : 'spin';
       this.activePointer = event.pointerId;
       this.start = { x: event.clientX, y: event.clientY, rotation: this.motion.pose.y, tilt: this.motion.pose.x };
-      this.samples = [{ x: event.clientX, y: event.clientY, time: event.timeStamp }];
+      if (hit) {
+        const normal = this.camera.getWorldDirection(new THREE.Vector3());
+        this.grabPlane.setFromNormalAndCoplanarPoint(normal, hit.point);
+        this.grabWorld.copy(hit.point);
+        this.grabDepth = hit.point.z;
+        this.motion.beginGrab(this.group.worldToLocal(hit.point.clone()), hit.point);
+      } else this.motion.beginTurn();
       canvas.setPointerCapture(event.pointerId);
       canvas.style.cursor = 'grabbing';
-      this.onGrab?.(this.drag === 'pull');
+      this.onGrab?.(Boolean(hit));
     });
     canvas.addEventListener('pointermove', event => {
+      this.updatePointer(event);
       if (!this.drag) {
-        this.updatePointer(event);
         canvas.style.cursor = this.raycaster.intersectObjects(this.group.children).length ? 'grab' : 'move';
         return;
       }
       if (event.pointerId !== this.activePointer) return;
       const dx = event.clientX - this.start.x;
       const dy = event.clientY - this.start.y;
-      this.samples.push({ x: event.clientX, y: event.clientY, time: event.timeStamp });
-      this.samples = this.samples.filter(sample => event.timeStamp - sample.time <= 140);
       if (this.drag === 'pull') {
-        const scale = 5 / this.container.clientHeight;
-        this.motion.pull.set(
-          THREE.MathUtils.clamp(dx * scale, -1.5, 1.5),
-          THREE.MathUtils.clamp(-dy * scale, -1, 1.3),
-          event.shiftKey ? THREE.MathUtils.clamp(-dy * scale, -1.5, 1.5) : 0,
-        ).applyQuaternion(this.group.quaternion.clone().invert());
+        if (this.raycaster.ray.intersectPlane(this.grabPlane, this.grabWorld)) {
+          if (event.shiftKey) this.grabWorld.z = this.grabDepth - dy * 0.006;
+          this.motion.grabTarget.copy(this.grabWorld);
+          this.motion.grabTarget.x = THREE.MathUtils.clamp(this.grabWorld.x, -2, 2);
+          this.motion.grabTarget.y = THREE.MathUtils.clamp(this.grabWorld.y, FLOOR_Y + 0.03, 2.1);
+          this.motion.grabTarget.z = THREE.MathUtils.clamp(this.grabWorld.z, -1.5, 1.5);
+        }
       } else {
-        this.motion.poseTarget.y = this.start.rotation + dx * 0.008;
-        this.motion.poseTarget.x = this.start.tilt + dy * 0.009;
+        this.motion.turnTo(this.start.tilt + dy * 0.009, this.start.rotation + dx * 0.008);
       }
     });
     const release = (event: PointerEvent) => {
       if (event.pointerId !== this.activePointer) return;
       if (this.drag === 'pull') {
-        const first = this.samples[0];
-        const last = this.samples[this.samples.length - 1];
-        const seconds = first && last ? (last.time - first.time) / 1000 : 0;
-        const recent = last && event.timeStamp - last.time < 120;
-        const distance = Math.hypot(event.clientX - this.start.x, event.clientY - this.start.y);
-        if (event.type === 'pointerup' && recent && seconds > 0.008 && distance > 35 && !event.shiftKey) {
-          const vx = (last.x - first.x) / seconds;
-          const vy = (last.y - first.y) / seconds;
-          if (vy < -500 || Math.abs(vx) > 950) this.toss(vx / 4000, vy > 0 ? -1 : 1);
-        }
+        this.motion.releaseGrab(event.type !== 'pointerup');
         this.onRelease?.();
-      }
+      } else this.motion.endTurn();
       this.drag = null;
       this.activePointer = null;
-      this.samples = [];
-      this.motion.pull.set(0, 0, 0);
       canvas.style.cursor = 'grab';
       this.onGrab?.(false);
     };
@@ -340,11 +341,15 @@ export class Jelly {
     this.motion.step(dt);
     const point = new THREE.Vector3();
     if (dt > 0) {
+      this.group.quaternion.copy(this.motion.orientation);
+      const rotation = new THREE.Matrix4().makeRotationFromQuaternion(this.motion.orientation).elements;
+      let lowest = Infinity;
       for (const { mesh, rest } of this.meshes) {
         const positions = mesh.geometry.getAttribute('position');
         for (let i = 0; i < positions.count; i++) {
           this.deform(rest[i * 3], rest[i * 3 + 1], rest[i * 3 + 2], point);
           positions.setXYZ(i, point.x, point.y, point.z);
+          lowest = Math.min(lowest, rotation[1] * point.x + rotation[5] * point.y + rotation[9] * point.z);
         }
         positions.needsUpdate = true;
         if (this.frame % 2 === 0) mesh.geometry.computeVertexNormals();
@@ -355,11 +360,13 @@ export class Jelly {
         const height = THREE.MathUtils.clamp((seed.rest.y + 1.5) / 3.05, 0, 1);
         seed.mesh.rotation.set(this.motion.bend.x * height, 0, seed.angle + this.motion.bend.y * height);
       }
-      const pose = this.motion.pose;
-      this.group.rotation.set(pose.x, pose.y, pose.z + this.motion.offset.x * 0.035);
-      this.group.position.set(this.motion.sideways, this.motion.height + (this.reducedMotion ? 0 : Math.sin(this.time * 1.45) * 0.035), 0);
-      this.shadow.scale.setScalar(1 + this.motion.height * 0.3 + this.motion.offset.y * 0.045);
-      (this.shadow.material as THREE.MeshBasicMaterial).opacity = 1 - this.motion.height * 0.45;
+      this.group.position.copy(this.motion.body).sub(point.copy(CENTER_OF_MASS).applyQuaternion(this.motion.orientation));
+      // The soft layer may bulge beyond its rigid contact shell; keep it above the table too.
+      this.group.position.y = Math.max(this.group.position.y, FLOOR_Y - lowest + 0.004);
+      this.floorClearance = lowest + this.group.position.y - FLOOR_Y;
+      this.shadow.position.set(this.motion.body.x, FLOOR_Y, this.motion.body.z);
+      this.shadow.scale.set(1 + this.motion.height * 0.25, 1 + this.motion.faceUpness * 0.4 + this.motion.height * 0.25, 1);
+      (this.shadow.material as THREE.MeshBasicMaterial).opacity = Math.max(0.2, 1 - this.motion.height * 0.5);
     }
     this.renderer.render(this.scene, this.camera);
     this.frame++;
@@ -370,11 +377,13 @@ export class Jelly {
   setTranslucency(value: number) {
     if ((this.flesh.transmission > 0) !== (value > 0)) this.flesh.needsUpdate = true;
     this.flesh.transmission = value / 100;
-    this.flesh.roughness = THREE.MathUtils.lerp(0.25, 0.038, value / 100);
+    this.flesh.roughness = THREE.MathUtils.lerp(0.26, 0.085, value / 100);
+    this.flesh.color.set(fleshColors[this.palette]).lerp(new THREE.Color(gelColors[this.palette]), value / 100 * 0.55);
   }
   setPalette(palette: Palette) {
-    this.flesh.color.set(gelColors[palette]);
-    this.flesh.attenuationColor.set(fleshColors[palette]);
+    this.palette = palette;
+    this.flesh.attenuationColor.set(gelColors[palette]);
+    this.setTranslucency(this.flesh.transmission * 100);
     this.nudge(0.45);
   }
   setWireframe(enabled: boolean) { this.materials.forEach(material => material.wireframe = enabled); }
@@ -386,10 +395,22 @@ export class Jelly {
     }
   }
   standUpright() {
+    this.cancelManipulation();
     this.paused = false;
     this.motion.standUpright();
   }
+  private cancelManipulation() {
+    const id = this.activePointer;
+    this.activePointer = null;
+    this.drag = null;
+    this.motion.releaseGrab(true);
+    this.motion.endTurn();
+    if (id !== null && this.renderer.domElement.hasPointerCapture(id)) this.renderer.domElement.releasePointerCapture(id);
+    this.renderer.domElement.style.cursor = 'grab';
+    this.onGrab?.(false);
+  }
   reset() {
+    this.cancelManipulation();
     this.motion.reset();
     this.time = 0;
   }
@@ -402,6 +423,11 @@ export class Jelly {
       tilt: this.motion.pose.x,
       bend: this.motion.bend.length(),
       height: this.motion.height,
+      x: this.motion.body.x,
+      bodyY: this.motion.body.y,
+      faceUpness: this.motion.faceUpness,
+      clearance: this.floorClearance,
+      held: this.motion.grabbed,
       airborne: this.motion.airborne,
       tosses: this.motion.tossCount,
       landings: this.motion.landings,

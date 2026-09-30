@@ -1,6 +1,6 @@
 import './style.css';
 import { Jelly, type Palette } from './jelly';
-import { DEFAULT_FIRMNESS, DEFAULT_DAMPING } from './motion';
+import { DEFAULT_FIRMNESS, DEFAULT_DAMPING, DEFAULT_TRANSLUCENCY } from './motion';
 
 const element = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const scene = element('scene');
@@ -75,7 +75,7 @@ try {
     scene.classList.toggle('is-grabbing', grabbing);
     const label = element('interaction-label');
     if (label) {
-      label.textContent = grabbing ? 'Pull slowly. Flick up to flip.' : 'Made to be played with.';
+      label.textContent = grabbing ? 'Pick it up. Let it plop.' : 'Made to be played with.';
       label.classList.toggle('active', grabbing);
     }
   };
@@ -125,8 +125,8 @@ try {
     jelly.setWireframe(false);
     jelly.setFirmness(DEFAULT_FIRMNESS);
     jelly.setDamping(DEFAULT_DAMPING);
-    jelly.setTranslucency(92);
-    for (const [id, value] of [['firmness', String(DEFAULT_FIRMNESS)], ['damping', String(DEFAULT_DAMPING)], ['translucency', '92']]) {
+    jelly.setTranslucency(DEFAULT_TRANSLUCENCY);
+    for (const [id, value] of [['firmness', String(DEFAULT_FIRMNESS)], ['damping', String(DEFAULT_DAMPING)], ['translucency', String(DEFAULT_TRANSLUCENCY)]]) {
       const input = element<HTMLInputElement>(id);
       input.value = value;
       syncRange(input);
@@ -183,6 +183,11 @@ try {
     scene.dataset.tosses = String(stats.tosses);
     scene.dataset.landings = String(stats.landings);
     scene.dataset.transmission = stats.transmission.toFixed(2);
+    scene.dataset.x = stats.x.toFixed(3);
+    scene.dataset.bodyY = stats.bodyY.toFixed(3);
+    scene.dataset.faceUpness = stats.faceUpness.toFixed(3);
+    scene.dataset.clearance = stats.clearance.toFixed(3);
+    scene.dataset.held = String(stats.held);
   }, 100);
   updatePause();
 } catch (error) {

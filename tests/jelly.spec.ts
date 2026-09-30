@@ -13,8 +13,8 @@ const test = base.extend<{ browserErrors: string[] }>({
   }, { auto: true }],
 });
 
-async function stat(page: Page, name: 'stretch' | 'rotation' | 'tilt' | 'height' | 'tosses' | 'landings' | 'bend') {
-  return Number(await page.locator('#scene').getAttribute(`data-${name}`));
+async function stat(page: Page, name: 'stretch' | 'rotation' | 'tilt' | 'height' | 'tosses' | 'landings' | 'bend' | 'faceUpness' | 'clearance' | 'x') {
+  return Number(await page.locator('#scene').getAttribute(`data-${name.replace(/[A-Z]/g, letter => "-" + letter.toLowerCase())}`));
 }
 
 async function energy(page: Page) {
@@ -72,7 +72,7 @@ test('palettes and keyboard-operable sliders update; reset restores all defaults
   await page.getByRole('button', { name: 'Reset the watermelon' }).click();
   await expect(page.locator('#firmness')).toHaveValue('35');
   await expect(page.locator('#damping')).toHaveValue('22');
-  await expect(page.locator('#translucency')).toHaveValue('92');
+  await expect(page.locator('#translucency')).toHaveValue('72');
   await expect(page.locator('#palette-name')).toHaveText('Ruby summer');
   await expect(page.locator('#scene')).toHaveAttribute('data-paused', 'false');
   await expect(page.getByLabel('½ speed', { exact: true })).not.toBeChecked();
@@ -111,7 +111,7 @@ test('pulling the fruit stretches it, releasing settles it, and empty-space drag
   await page.mouse.down();
   await expect(page.locator('#scene')).toHaveClass(/is-grabbing/);
   await page.mouse.move(fruit.x + 125, fruit.y - 65, { steps: 8 });
-  await expect.poll(() => stat(page, 'stretch')).toBeGreaterThan(0.4);
+  await expect.poll(() => stat(page, 'stretch')).toBeGreaterThan(0.03);
   await page.mouse.up();
   await expect(page.locator('#scene')).not.toHaveClass(/is-grabbing/);
   await expect(page.locator('#scene')).toHaveAttribute('data-tosses', '0');
@@ -120,14 +120,16 @@ test('pulling the fruit stretches it, releasing settles it, and empty-space drag
   await expect.poll(() => stat(page, 'stretch'), { timeout: 25_000 }).toBeLessThan(0.02);
   await expect.poll(() => energy(page)).toBeLessThan(0.01);
 
+  await page.keyboard.press('u');
+  await expect.poll(async () => Math.abs(await stat(page, 'rotation') - 0.62)).toBeLessThan(0.025);
   const rotation = await stat(page, 'rotation');
   const empty = { x: box.x + box.width * 0.14, y: box.y + box.height * 0.8 };
   await page.mouse.move(empty.x, empty.y);
   await page.mouse.down();
   await expect(page.locator('#scene')).not.toHaveClass(/is-grabbing/);
-  await page.mouse.move(empty.x + 180, empty.y - 20, { steps: 8 });
+  await page.mouse.move(empty.x + 70, empty.y, { steps: 8 });
   await page.mouse.up();
-  await expect.poll(() => stat(page, 'rotation')).toBeGreaterThan(rotation + 0.7);
+  await expect.poll(() => stat(page, 'rotation')).toBeGreaterThan(rotation + 0.4);
 });
 
 test('sound and the experiment explanation can be toggled', async ({ page }) => {
@@ -144,30 +146,48 @@ test('sound and the experiment explanation can be toggled', async ({ page }) => 
   await expect(details).not.toHaveAttribute('open', '');
 });
 
-test('translucency changes the rendered gel and reset restores its clear default', async ({ page }) => {
-  await expect(page.locator('#translucency')).toHaveValue('92');
+test('translucency changes the gel while zero and maximum retain saturated fruit color', async ({ page }) => {
+  await expect(page.locator('#translucency')).toHaveValue('72');
   await page.locator('#pause').click();
   await page.locator('#translucency').focus();
   await page.keyboard.press('Home');
   await expect(page.locator('#scene')).toHaveAttribute('data-transmission', '0.00');
+  const redPixels = () => page.locator('#scene canvas').evaluate(canvas => new Promise<number>(resolve => {
+    requestAnimationFrame(() => {
+      const source = canvas as HTMLCanvasElement;
+      const copy = document.createElement('canvas');
+      copy.width = source.width; copy.height = source.height;
+      const context = copy.getContext('2d')!;
+      context.drawImage(source, 0, 0);
+      const pixels = context.getImageData(0, 0, copy.width, copy.height).data;
+      let red = 0;
+      for (let i = 0; i < pixels.length; i += 4) {
+        if (pixels[i] > 150 && pixels[i] > pixels[i + 1] * 1.3 && pixels[i] > pixels[i + 2] * 1.15) red++;
+      }
+      resolve(red);
+    });
+  }));
+  await expect.poll(redPixels, { message: 'Opaque fruit must stay red instead of becoming white' }).toBeGreaterThan(1500);
   const opaque = await page.locator('#scene canvas').screenshot();
   await page.keyboard.press('End');
   await expect(page.locator('#scene')).toHaveAttribute('data-transmission', '1.00');
+  await expect.poll(redPixels, { message: 'Transparent fruit must retain its red tint' }).toBeGreaterThan(1500);
   const clear = await page.locator('#scene canvas').screenshot();
   expect(opaque.equals(clear), 'The translucency control must visibly change the rendered fruit').toBe(false);
   await page.locator('#reset').click();
-  await expect(page.locator('#scene')).toHaveAttribute('data-transmission', '0.92');
+  await expect(page.locator('#scene')).toHaveAttribute('data-transmission', '0.72');
 });
 
-test('a toss flips, pauses in midair, lands and upright preserves the chosen settings', async ({ page }) => {
+test('a little hop pauses in midair, lands and upright preserves the chosen settings', async ({ page }) => {
   await page.locator('button[data-palette="golden"]').click();
+  await page.locator('label.check-label').filter({ hasText: '½ speed' }).click();
   await page.locator('#toss').click();
   await expect.poll(() => stat(page, 'tosses')).toBe(1);
   await expect.poll(() => stat(page, 'height')).toBeGreaterThan(0.1);
   await page.locator('#pause').click();
   await expect(page.locator('#scene')).toHaveAttribute('data-paused', 'true');
   await expect(page.locator('#scene')).toHaveAttribute('data-airborne', 'true');
-  // A repeated toss during a paused flip must not silently resume the simulation.
+  // A repeated toss during a paused hop must not silently resume the simulation.
   await page.locator('#toss').click();
   await expect(page.locator('#scene')).toHaveAttribute('data-paused', 'true');
   await expect.poll(() => stat(page, 'tosses')).toBe(1);
@@ -178,16 +198,16 @@ test('a toss flips, pauses in midair, lands and upright preserves the chosen set
   expect(await stat(page, 'height')).toBe(height);
   expect(await stat(page, 'tilt')).toBe(tilt);
   await page.locator('#pause').click();
-  await expect.poll(() => stat(page, 'landings'), { timeout: 25_000 }).toBe(1);
+  await expect.poll(() => stat(page, 'landings'), { timeout: 25_000 }).toBeGreaterThanOrEqual(1);
   await expect(page.locator('#scene')).toHaveAttribute('data-airborne', 'false');
   await page.locator('#toss').click();
   await expect.poll(() => stat(page, 'tosses')).toBe(2);
   await page.locator('#upright').click();
   await expect(page.locator('#scene')).toHaveAttribute('data-airborne', 'false');
-  await expect.poll(async () => Math.abs(await stat(page, 'tilt') - 0.1)).toBeLessThan(0.025);
+  await expect.poll(async () => Math.abs(await stat(page, 'tilt') - 0.06)).toBeLessThan(0.025);
   await expect(page.locator('#palette-name')).toHaveText('Golden hour');
   await expect(page.locator('#firmness')).toHaveValue('35');
-  await expect(page.locator('#translucency')).toHaveValue('92');
+  await expect(page.locator('#translucency')).toHaveValue('72');
 });
 
 test('the slice can turn onto its side and the upright shortcut restores its pose', async ({ page }, testInfo) => {
@@ -199,33 +219,44 @@ test('the slice can turn onto its side and the upright shortcut restores its pos
   await page.mouse.down();
   await page.mouse.move(x + 40, y + 180, { steps: 6 });
   await page.mouse.up();
-  await expect.poll(() => stat(page, 'tilt')).toBeGreaterThan(1.2);
+  await expect.poll(() => stat(page, 'faceUpness'), { timeout: 25_000 }).toBeGreaterThan(0.95);
+  await page.waitForTimeout(800);
+  expect(await stat(page, 'faceUpness')).toBeGreaterThan(0.95);
+  expect(await stat(page, 'clearance')).toBeGreaterThanOrEqual(0);
+  expect(await stat(page, 'height')).toBeLessThan(0.02);
   await page.keyboard.press('u');
-  await expect.poll(async () => Math.abs(await stat(page, 'tilt') - 0.1)).toBeLessThan(0.025);
+  await expect.poll(async () => Math.abs(await stat(page, 'tilt') - 0.06)).toBeLessThan(0.025);
   await expect.poll(async () => Math.abs(await stat(page, 'rotation') - 0.62)).toBeLessThan(0.025);
 });
 
-test('an upward flick tosses the slice with a mouse or touch', async ({ page }, testInfo) => {
+test('mouse and touch can lift, hold and drop the fruit without triggering a scripted flip', async ({ page }, testInfo) => {
   const canvas = (await page.locator('#scene canvas').boundingBox())!;
   const x = canvas.x + canvas.width * 0.5;
   const y = canvas.y + canvas.height * 0.5;
   const client = await page.context().newCDPSession(page);
-  const time = Date.now() / 1000;
-  // Explicit hardware-event timestamps keep this fast gesture realistic under software rendering.
-  if (testInfo.project.name === 'mobile') {
-    await client.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }], timestamp: time });
-    for (let i = 1; i <= 3; i++) await client.send('Input.dispatchTouchEvent', {
-      type: 'touchMove', touchPoints: [{ x, y: y - i * 35 }], timestamp: time + i * 0.03,
-    });
-    await client.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [], timestamp: time + 0.1 });
+  const touch = testInfo.project.name === 'mobile';
+  if (touch) {
+    await client.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] });
   } else {
-    await client.send('Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', buttons: 1, clickCount: 1, timestamp: time });
-    for (let i = 1; i <= 3; i++) await client.send('Input.dispatchMouseEvent', {
-      type: 'mouseMoved', x, y: y - i * 35, button: 'left', buttons: 1, timestamp: time + i * 0.03,
-    });
-    await client.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x, y: y - 105, button: 'left', buttons: 0, clickCount: 1, timestamp: time + 0.1 });
+    await page.mouse.move(x, y);
+    await page.mouse.down();
   }
-  await expect.poll(() => stat(page, 'tosses')).toBe(1);
-  await expect.poll(() => stat(page, 'landings'), { timeout: 25_000 }).toBe(1);
-  await expect(page.locator('#scene')).toHaveAttribute('data-airborne', 'false');
+  await expect(page.locator('#scene')).toHaveAttribute('data-held', 'true');
+  if (touch) {
+    await client.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x, y: y - 145 }] });
+  } else {
+    await page.mouse.move(x, y - 145, { steps: 8 });
+  }
+  await expect.poll(() => stat(page, 'height')).toBeGreaterThan(0.15);
+  await expect(page.locator('#scene')).toHaveAttribute('data-held', 'true');
+  if (touch) {
+    await client.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  } else {
+    await page.mouse.up();
+  }
+  await expect(page.locator('#scene')).toHaveAttribute('data-held', 'false');
+  await expect.poll(() => stat(page, 'landings'), { timeout: 25_000 }).toBeGreaterThanOrEqual(1);
+  await expect.poll(() => stat(page, 'height')).toBeLessThan(0.02);
+  await expect(page.locator('#scene')).toHaveAttribute('data-tosses', '0');
+  expect(await stat(page, 'clearance')).toBeGreaterThanOrEqual(0);
 });

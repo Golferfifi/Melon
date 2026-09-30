@@ -15,16 +15,17 @@ The development server binds to all interfaces. The cloud environment provides t
 
 ## Play
 
-- Pull the fruit gently to stretch it, then release to watch it wobble.
-- Flick the fruit upward to toss it through a floppy flip. The **Toss it** button, double click, Space, and T do the same.
-- Drag the background horizontally or vertically to turn the slice all the way around. Hold Shift while pulling for depth.
-- Use **Stand upright** or U to restore its pose without changing your color or softness settings.
-- Change the palette, translucency, firmness, or internal damping. Seeds sit inside the gel and show through its surface.
+- Grab the fruit to move and lift it. Release it to drop onto the table; fast drags carry momentum into the drop.
+- Drag empty space vertically to tip it onto either face, or horizontally to turn it. The slice stays lying down after it settles.
+- Use **Stand upright** or U to stand it up and bring it back to the center without changing your color or softness settings.
+- **Little hop**, double click, Space, or T gives it a gentle hop with a little tumble. It does not force a full flip or reset its landing pose.
+- Hold Shift while dragging the fruit to move it in depth.
+- Change palette, translucency, firmness, or damping. Colors stay saturated at both ends of the translucency slider.
 - Give it a smaller wobble with **Give it a nudge**.
 - Try half speed, the wireframe view, or optional sound.
 - Reset with the arrow button or R. Pause freezes the simulation.
 
-The spring-based deformation and live measurements are an artistic approximation, not a scientific soft-body solver. Reduced-motion preferences disable the idle floating motion. A WebGL-capable browser is required.
+The slice uses gravity, a point grab, contact impulses, and friction against a horizontal table, with a spring-based gel layer. The live measurements are an artistic approximation, not a scientific soft-body solver. The slice rests still until you interact with it. A WebGL-capable browser is required.
 
 ## Verify
 
