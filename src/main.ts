@@ -1,0 +1,168 @@
+import './style.css';
+import { Jelly, type Palette } from './jelly';
+
+const element = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
+const scene = element('scene');
+const paletteNames: Record<Palette, string> = {
+  ruby: 'Ruby summer', peach: 'Peach daydream', golden: 'Golden hour',
+};
+let toastTimer: ReturnType<typeof setTimeout>;
+let soundEnabled = false;
+let audioContext: AudioContext | undefined;
+let jelly: Jelly;
+
+function toast(message: string) {
+  const notification = element('toast');
+  notification.textContent = message;
+  notification.classList.add('visible');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => notification.classList.remove('visible'), 2500);
+}
+
+function playNote() {
+  if (!soundEnabled) return;
+  audioContext ??= new AudioContext();
+  void audioContext.resume();
+  const oscillator = audioContext.createOscillator();
+  const gain = audioContext.createGain();
+  const time = audioContext.currentTime;
+  oscillator.type = 'sine';
+  oscillator.frequency.setValueAtTime(320 + Math.random() * 160, time);
+  oscillator.frequency.exponentialRampToValueAtTime(110, time + 0.18);
+  gain.gain.setValueAtTime(0.0001, time);
+  gain.gain.exponentialRampToValueAtTime(0.13, time + 0.012);
+  gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.45);
+  oscillator.connect(gain);
+  gain.connect(audioContext.destination);
+  oscillator.start(time);
+  oscillator.stop(time + 0.5);
+}
+
+function syncRange(input: HTMLInputElement) {
+  input.style.setProperty('--fill', `${input.value}%`);
+  element(`${input.id}-value`).textContent = input.value;
+}
+
+function updatePause() {
+  const pause = element<HTMLButtonElement>('pause');
+  pause.setAttribute('aria-pressed', String(jelly.paused));
+  pause.innerHTML = jelly.paused
+    ? '<span class="pause-symbol" aria-hidden="true">▷</span><span class="pause-text">Resume</span>'
+    : '<span class="pause-symbol" aria-hidden="true">Ⅱ</span><span class="pause-text">Pause</span>';
+  document.querySelector('.playback-status')!.textContent = jelly.paused ? 'A quiet moment' : 'Let it wobble';
+  scene.dataset.paused = String(jelly.paused);
+}
+
+function nudge() {
+  if (jelly.paused) {
+    jelly.paused = false;
+    updatePause();
+  }
+  jelly.nudge();
+  playNote();
+  element('nudge').classList.remove('nudged');
+  requestAnimationFrame(() => element('nudge').classList.add('nudged'));
+}
+
+try {
+  jelly = new Jelly(scene);
+  scene.dataset.ready = 'true';
+  scene.dataset.palette = 'ruby';
+  scene.dataset.paused = 'false';
+  jelly.onGrab = grabbing => {
+    scene.classList.toggle('is-grabbing', grabbing);
+    const label = element('interaction-label');
+    if (label) {
+      label.textContent = grabbing ? 'Aaand… let go.' : 'Made to be played with.';
+      label.classList.toggle('active', grabbing);
+    }
+  };
+  jelly.onRelease = playNote;
+
+  document.querySelectorAll<HTMLButtonElement>('button[data-palette]').forEach(button => {
+    button.addEventListener('click', () => {
+      const palette = button.dataset.palette as Palette;
+      jelly.setPalette(palette);
+      scene.dataset.palette = palette;
+      document.querySelectorAll('button[data-palette]').forEach(other => {
+        other.classList.toggle('active', other === button);
+        other.setAttribute('aria-pressed', String(other === button));
+      });
+      element('palette-name').textContent = paletteNames[palette];
+      playNote();
+    });
+  });
+
+  for (const id of ['firmness', 'damping']) {
+    const input = element<HTMLInputElement>(id);
+    syncRange(input);
+    input.addEventListener('input', () => {
+      syncRange(input);
+      if (id === 'firmness') jelly.setFirmness(Number(input.value));
+      else jelly.setDamping(Number(input.value));
+    });
+    input.addEventListener('change', () => { if (!jelly.paused) jelly.nudge(0.3); });
+  }
+
+  element('nudge').addEventListener('click', nudge);
+  element('reset').addEventListener('click', () => {
+    jelly.reset();
+    jelly.paused = false;
+    jelly.slow = false;
+    jelly.setWireframe(false);
+    jelly.setFirmness(58);
+    jelly.setDamping(34);
+    for (const [id, value] of [['firmness', '58'], ['damping', '34']]) {
+      const input = element<HTMLInputElement>(id);
+      input.value = value;
+      syncRange(input);
+    }
+    element<HTMLInputElement>('slow-motion').checked = false;
+    element<HTMLInputElement>('show-mesh').checked = false;
+    document.querySelector<HTMLButtonElement>('button[data-palette="ruby"]')!.click();
+    jelly.reset();
+    updatePause();
+    toast('Fresh slice. Fresh start.');
+  });
+  element('slow-motion').addEventListener('change', event => {
+    jelly.slow = (event.target as HTMLInputElement).checked;
+    toast(jelly.slow ? 'Taking the scenic route. ½ speed.' : 'Back to a little more bounce.');
+  });
+  element('show-mesh').addEventListener('change', event => {
+    jelly.setWireframe((event.target as HTMLInputElement).checked);
+  });
+  element('pause').addEventListener('click', () => {
+    jelly.paused = !jelly.paused;
+    updatePause();
+  });
+  element('sound')?.addEventListener('click', () => {
+    soundEnabled = !soundEnabled;
+    const sound = element('sound');
+    sound.setAttribute('aria-pressed', String(soundEnabled));
+    sound.setAttribute('aria-label', soundEnabled ? 'Turn sound off' : 'Turn sound on');
+    sound.classList.toggle('is-on', soundEnabled);
+    toast(soundEnabled ? 'A little sound with your wobble.' : 'Quiet as a summer afternoon.');
+    playNote();
+  });
+  document.addEventListener('keydown', event => {
+    if ((event.target as HTMLElement).matches('input, button, a, textarea, select, summary') || event.metaKey || event.ctrlKey || event.altKey) return;
+    if (event.code === 'Space') {
+      event.preventDefault();
+      nudge();
+    }
+    if (event.code === 'KeyR') element('reset').click();
+  });
+  setInterval(() => {
+    const stats = jelly.getStats();
+    element('energy-value').textContent = stats.energy.toFixed(3);
+    element('volume-value').textContent = stats.volume.toFixed(1);
+    scene.dataset.stretch = stats.stretch.toFixed(3);
+    scene.dataset.rotation = stats.rotation.toFixed(3);
+  }, 100);
+  updatePause();
+} catch (error) {
+  console.error('The 3D canvas could not start.', error);
+  scene.dataset.ready = 'false';
+  scene.innerHTML = '<div class="scene-fallback"><span>Something needs a little nudge.</span><p>This experiment needs WebGL. Please enable hardware acceleration in your browser, then refresh.</p></div>';
+  document.querySelectorAll<HTMLInputElement | HTMLButtonElement>('.specimen-panel input, .specimen-panel button').forEach(control => { control.disabled = true; });
+}

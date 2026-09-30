@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f5f3ef" />
+    <meta name="description" content="A little slice of summer. A playful, tactile study of a very wobbly watermelon." />
+    <title>Melon Jelly · A material study</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath d='M8 13h48a24 24 0 0 1-48 0' fill='%23486940'/%3E%3Cpath d='M12 13h40a20 20 0 0 1-40 0' fill='%23dce8b1'/%3E%3Cpath d='M16 13h32a16 16 0 0 1-32 0' fill='%23e77579'/%3E%3Cellipse cx='25' cy='20' rx='1.5' ry='3' fill='%2334352b'/%3E%3Cellipse cx='37' cy='20' rx='1.5' ry='3' fill='%2334352b'/%3E%3Cellipse cx='31' cy='26' rx='1.5' ry='3' fill='%2334352b'/%3E%3C/svg%3E" />
+  </head>
+  <body>
+    <main class="page-shell">
+      <header class="masthead">
+        <a class="wordmark" href="./" aria-label="Melon Jelly, home">Material studies <span class="header-divider">/</span> <span class="edition">No. 009</span></a>
+        <div class="header-right">
+          <button id="sound" class="sound-button" type="button" aria-label="Enable sound" aria-pressed="false" title="Toggle sound">
+            <svg class="sound-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M9 4 5 7H2v6h3l4 3V4Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path class="sound-waves" d="M12 7a5 5 0 0 1 0 6m2-9a9 9 0 0 1 0 12" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><path class="sound-mute" d="m12.5 7.5 5 5m0-5-5 5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+          </button>
+          <span class="live-label"><span class="live-dot"></span> WebGL · Live</span>
+        </div>
+      </header>
+
+      <section class="experiment" aria-label="Interactive watermelon jelly experiment">
+        <div id="scene" aria-label="A three dimensional jelly watermelon. Drag the fruit to stretch it, or the background to turn it."></div>
+
+        <div class="introduction">
+          <div class="intro-kicker">A study in softness</div>
+          <h1>Melon<br />Jelly<span class="title-period">.</span></h1>
+          <p class="intro-poem">A slice of summer.<br />A little wobble.<br />Too soft to share.</p>
+          <div class="season-label"><span></span>Softness, in season</div>
+        </div>
+
+        <aside class="specimen-panel" aria-label="Watermelon controls">
+          <h2>The specimen <span>01</span></h2>
+          <fieldset class="palette-control">
+            <legend>Palette</legend>
+            <div class="palette-options" role="group" aria-label="Fruit palette">
+              <button class="palette-swatch ruby active" data-palette="ruby" type="button" aria-label="Ruby summer palette" aria-pressed="true"><span></span></button>
+              <button class="palette-swatch peach" data-palette="peach" type="button" aria-label="Peach sorbet palette" aria-pressed="false"><span></span></button>
+              <button class="palette-swatch golden" data-palette="golden" type="button" aria-label="Golden hour palette" aria-pressed="false"><span></span></button>
+            </div>
+            <p id="palette-name" class="palette-name">Ruby summer</p>
+          </fieldset>
+
+          <div class="range-control">
+            <label for="firmness">Firmness <output id="firmness-value" for="firmness">58</output></label>
+            <input id="firmness" type="range" min="0" max="100" value="58" />
+            <div class="range-extents"><span>Pillowy</span><span>Springy</span></div>
+          </div>
+
+          <div class="range-control damping-control">
+            <label for="damping">Internal damping <output id="damping-value" for="damping">34</output></label>
+            <input id="damping" type="range" min="0" max="100" value="34" />
+            <div class="range-extents"><span>Wobbly</span><span>Still</span></div>
+          </div>
+
+          <div class="action-buttons">
+            <button id="nudge" class="nudge-button" type="button"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="m3 8 10 0m-4-4 4 4-4 4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>Give it a nudge</button>
+            <button id="reset" class="reset-button" type="button" aria-label="Reset the watermelon" title="Reset the watermelon"><svg viewBox="0 0 18 18" fill="none" aria-hidden="true"><path d="M4.1 5.5A5.6 5.6 0 1 1 3.4 11M4.1 2.2v3.7h3.7" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          </div>
+
+          <div class="checkbox-controls">
+            <label class="check-label"><input id="slow-motion" type="checkbox" /><span class="check-box" aria-hidden="true"></span>½ speed</label>
+            <label class="check-label"><input id="show-mesh" type="checkbox" /><span class="check-box" aria-hidden="true"></span>Show mesh</label>
+          </div>
+
+          <div class="playback-row">
+            <button id="pause" class="pause-button" type="button" aria-pressed="false"><span class="pause-symbol" aria-hidden="true">Ⅱ</span><span class="pause-text">Pause</span></button>
+            <span class="playback-status">Let it wobble</span>
+          </div>
+          <p class="control-hint">Drag empty space to turn.<br /> <kbd>Shift</kbd> + drag for depth.</p>
+        </aside>
+
+        <div class="scene-caption" aria-hidden="true"><span class="caption-mark">↗</span> Curiously satisfying.</div>
+        <div id="interaction-label" class="interaction-label" aria-hidden="true">Give it a little pull</div>
+        <div id="toast" class="toast" role="status" aria-live="polite"></div>
+      </section>
+
+      <footer class="experiment-footer">
+        <div class="footer-topline">
+          <p class="invitation"><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M7 10V5a1.3 1.3 0 0 1 2.6 0v4m0-1.5a1.3 1.3 0 0 1 2.6 0V10m0-1a1.3 1.3 0 0 1 2.6 0v2m0-1a1.3 1.3 0 0 1 2.6 0v3c0 3-1.8 5-4.7 5H11c-1.6 0-2.6-.8-3.5-2.2L4 10.5a1.2 1.2 0 0 1 1.9-1.4L7 10Z" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></svg><em>Go on, give it a pull.</em> <span>Grab the flesh or rind. Stretch, then let go.</span></p>
+          <p class="made-of-light">Made of light. Moved by you.</p>
+        </div>
+        <div class="footer-bottomline">
+          <div class="metrics" aria-label="Live simulation values">
+            <div class="metric"><span class="metric-label">Mass</span><div><span id="mass-value">64.0</span><span class="metric-unit">g</span></div></div>
+            <div class="metric"><span class="metric-label">Relative volume</span><div><span id="volume-value">100.0</span><span class="metric-unit">%</span></div></div>
+            <div class="metric"><span class="metric-label">Kinetic energy</span><div><span id="energy-value">0.000</span><span class="metric-unit">J</span></div></div>
+          </div>
+          <details class="about-experiment">
+            <summary>Inside the experiment <span class="about-plus" aria-hidden="true">+</span></summary>
+            <p>A little playground for soft-body motion. Stretch the slice, change its springiness, and watch it find its balance. No two wobbles are quite the same.</p>
+          </details>
+        </div>
+        <p class="simulation-note">Live simulation values. A small, unscientific celebration of softness.</p>
+      </footer>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
